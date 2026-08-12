@@ -532,11 +532,32 @@
 
     <div class="page page-analysis" id="page-analysis" style="display:none;">
         <div class="analysis-header">
-            <h2>盘面分析 - 2026-08-11</h2>
+            <h2>盘面分析 - <span id="analysis-date">2026-08-11</span></h2>
         </div>
 
         <div class="chart-section">
-            <h2>板块分布</h2>
+            <h2>实时板块表现</h2>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th>行业涨幅榜</th><th class="td-center">涨跌幅</th><th>行业跌幅榜</th><th class="td-center">涨跌幅</th></tr></thead>
+                    <tbody id="live-sector-rows"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2>实时涨停 / 跌停池</h2>
+            <div class="table-wrap">
+                <table class="data-table">
+                    <thead><tr><th class="td-center">#</th><th>涨停股</th><th class="td-center">涨跌幅</th><th class="td-center">连板</th><th>所属板块</th><th class="td-center">#</th><th>跌停股</th><th class="td-center">涨跌幅</th></tr></thead>
+                    <tbody id="live-pool-rows"></tbody>
+                </table>
+            </div>
+        </div>
+
+
+        <div class="chart-section">
+            <h2>板块分布 <span style="font-size:12px;color:#999">(收盘快照)</span></h2>
             <div class="table-wrap">
                 <table class="data-table sector-table">
                     <thead>

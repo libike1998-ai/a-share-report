@@ -6,9 +6,15 @@
   var UT = '7eea3edcaed734bea9cbfc24409ed989';
   var ZT_URL = 'https://push2ex.eastmoney.com/getTopicZTPool?ut=' + UT + '&dpt=wz.ztzt&Pageindex=0&pagesize=100&sort=fbt%3Aasc&date=__DATE__&cb=__ztCb';
   var DT_URL = 'https://push2ex.eastmoney.com/getTopicDTPool?ut=' + UT + '&dpt=wz.ztzt&Pageindex=0&pagesize=100&sort=fund%3Aasc&date=__DATE__&cb=__dtCb';
+  var SECTOR_UP_URL = 'https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=8&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:2+f:!50&fields=f2,f3,f12,f14&cb=__sectorUpCb';
+  var SECTOR_DOWN_URL = 'https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=8&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:2+f:!50&fields=f2,f3,f12,f14&cb=__sectorDownCb';
 
   var lastQuoteToken = 0;
   var lastLimitToken = 0;
+  var lastZtData = null;
+  var lastDtData = null;
+  var lastSectorUp = [];
+  var lastSectorDown = [];
 
   function dateParam() {
     var d = new Date();
@@ -69,6 +75,14 @@
     if (el) el.textContent = text;
   }
 
+  function escHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
   function updateIndex(item, id) {
     var valEl = document.getElementById('idx-' + id);
     var chgEl = document.getElementById('chg-' + id);
@@ -105,9 +119,66 @@
   }
 
   function applyLimits(data, isUp) {
+    if (isUp) {
+      lastZtData = data;
+    } else {
+      lastDtData = data;
+    }
     var tc = data && data.data && data.data.tc;
-    if (tc == null) return;
-    setText(isUp ? 'limit-up' : 'limit-down', fmtInt(tc));
+    if (tc != null) setText(isUp ? 'limit-up' : 'limit-down', fmtInt(tc));
+    renderLivePools();
+  }
+
+  function renderLivePools() {
+    var tbody = document.getElementById('live-pool-rows');
+    if (!tbody) return;
+    var ztArr = (lastZtData && lastZtData.data && Array.isArray(lastZtData.data.pool)) ? lastZtData.data.pool : [];
+    var dtArr = (lastDtData && lastDtData.data && Array.isArray(lastDtData.data.pool)) ? lastDtData.data.pool : [];
+    var len = Math.min(20, Math.max(ztArr.length, dtArr.length));
+    var rows = '';
+    for (var i = 0; i < len; i++) {
+      var z = ztArr[i];
+      var d = dtArr[i];
+      rows += '<tr>'
+        + '<td class="td-idx td-center">' + (i + 1) + '</td>'
+        + (z
+          ? '<td class="td-name">' + escHtml(z.n) + '</td>'
+            + '<td class="td-num td-center" style="color:#CC0000">+' + Number(z.zdp).toFixed(2) + '%</td>'
+            + '<td class="td-center">' + (z.lbc || 1) + '板</td>'
+            + '<td class="td-sector">' + escHtml(z.hybk || '') + '</td>'
+          : '<td class="td-name">—</td><td class="td-num td-center">—</td><td class="td-center">—</td><td class="td-sector">—</td>')
+        + '<td class="td-idx td-center">' + (i + 1) + '</td>'
+        + (d
+          ? '<td class="td-name">' + escHtml(d.n) + '</td>'
+            + '<td class="td-num td-center" style="color:#00AA00">' + Number(d.zdp).toFixed(2) + '%</td>'
+          : '<td class="td-name">—</td><td class="td-num td-center">—</td>')
+        + '</tr>';
+    }
+    tbody.innerHTML = rows;
+  }
+
+  function renderSectorRows() {
+    var tbody = document.getElementById('live-sector-rows');
+    if (!tbody) return;
+    var upArr = Array.isArray(lastSectorUp) ? lastSectorUp : [];
+    var downArr = Array.isArray(lastSectorDown) ? lastSectorDown : [];
+    var len = Math.max(upArr.length, downArr.length);
+    var rows = '';
+    for (var i = 0; i < len; i++) {
+      var u = upArr[i];
+      var d = downArr[i];
+      rows += '<tr>'
+        + (u
+          ? '<td class="td-sector-name">' + escHtml(u.f14) + '</td>'
+            + '<td class="td-num td-center" style="color:#CC0000">+' + Number(u.f3).toFixed(2) + '%</td>'
+          : '<td class="td-sector-name">—</td><td class="td-num td-center">—</td>')
+        + (d
+          ? '<td class="td-sector-name">' + escHtml(d.f14) + '</td>'
+            + '<td class="td-num td-center" style="color:#00AA00">' + Number(d.f3).toFixed(2) + '%</td>'
+          : '<td class="td-sector-name">—</td><td class="td-num td-center">—</td>')
+        + '</tr>';
+    }
+    tbody.innerHTML = rows;
   }
 
   function nowText() {
@@ -126,7 +197,21 @@
     if (dateEl) {
       dateEl.innerHTML = '数据日期: ' + today + ' | 更新时间: ' + today + ' ' + nowText() + ' <span id="live-status"> | 实时刷新中</span>';
     }
+    var analysisDate = document.getElementById('analysis-date');
+    if (analysisDate) analysisDate.textContent = today;
     document.title = 'A股大盘日报 - ' + today;
+    try {
+      if (window.Chart && Chart.instances) {
+        for (var key in Chart.instances) {
+          if (Object.prototype.hasOwnProperty.call(Chart.instances, key)) {
+            var chart = Chart.instances[key];
+            var labels = chart.data && chart.data.labels;
+            if (labels && labels.length) labels[labels.length - 1] = today;
+            chart.update();
+          }
+        }
+      }
+    } catch (e) {}
   }
 
   function setStatus(text) {
@@ -150,6 +235,20 @@
 
     jsonp(DT_URL.split('__DATE__').join(today), '__dtCb').then(function (d) {
       if (limitToken === lastLimitToken) applyLimits(d, false);
+    }).catch(function () {});
+
+    jsonp(SECTOR_UP_URL, '__sectorUpCb').then(function (d) {
+      if (quoteToken === lastQuoteToken) {
+        lastSectorUp = (d && d.data && Array.isArray(d.data.diff)) ? d.data.diff : [];
+        renderSectorRows();
+      }
+    }).catch(function () {});
+
+    jsonp(SECTOR_DOWN_URL, '__sectorDownCb').then(function (d) {
+      if (quoteToken === lastQuoteToken) {
+        lastSectorDown = (d && d.data && Array.isArray(d.data.diff)) ? d.data.diff : [];
+        renderSectorRows();
+      }
     }).catch(function () {});
   }
 
