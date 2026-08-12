@@ -1,0 +1,2241 @@
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A股大盘日报 - 实时</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "微软雅黑", sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            display: flex;
+        }
+        .sidebar {
+            width: 140px;
+            min-width: 140px;
+            background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%);
+            color: #ccc;
+            padding: 16px 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .sidebar-logo {
+            font-size: 16px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 24px;
+            padding: 8px;
+            text-align: center;
+        }
+        .nav-item {
+            display: block;
+            width: 100%;
+            padding: 12px 8px;
+            text-align: center;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .nav-item:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.08);
+        }
+        .nav-item.active {
+            color: #fff;
+            background: rgba(102,126,234,0.2);
+            border-left-color: #667eea;
+        }
+        .main-content {
+            margin-left: 140px;
+            padding: 20px;
+            flex: 1;
+            min-width: 0;
+        }
+        .page { max-width: 1200px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+        }
+        .header h1 { font-size: 28px; margin-bottom: 8px; }
+        .header .date { font-size: 14px; opacity: 0.9; }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .cards-5 {
+            grid-template-columns: repeat(5, 1fr);
+        }
+        .card {
+            background: white;
+            padding: 16px 12px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+        .card-title { font-size: 12px; color: #888; margin-bottom: 6px; }
+        .card-value { font-size: 22px; font-weight: 700; color: #333; }
+        .card-change { font-size: 14px; font-weight: 600; margin-top: 4px; }
+        .chart-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .chart-section h2 {
+            font-size: 16px;
+            color: #444;
+            margin-bottom: 12px;
+            border-left: 4px solid #667eea;
+            padding-left: 10px;
+        }
+        .chart-container { position: relative; height: 200px; }
+        .chart-container.tall { height: 280px; }
+        .chart-scroll-wrapper {
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            position: relative;
+        }
+        .chart-scroll-inner {
+            position: relative;
+            min-width: 100%;
+        }
+        .volume-bar-container { height: 80px; }
+        .chart-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .screen-row { grid-template-columns: 1fr 1fr; }
+        .market-summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .summary-item {
+            background: white;
+            padding: 10px 6px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .summary-item .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+        .summary-item .value { font-size: 18px; font-weight: 700; }
+        /* 数据表格样式 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .data-table th {
+            background: #f0f2f5;
+            color: #555;
+            font-weight: 600;
+            padding: 8px 10px;
+            text-align: left;
+            border-bottom: 2px solid #e0e0e0;
+            white-space: nowrap;
+        }
+        .data-table th:first-child { border-top-left-radius: 6px; }
+        .data-table th:last-child { border-top-right-radius: 6px; }
+        .data-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .data-table tbody tr:hover {
+            background: #f8f9ff;
+        }
+        .data-table tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+        .td-code { font-family: monospace; font-size: 12px; color: #888; }
+        .td-name { font-weight: 500; }
+        .td-total { font-weight: 700; color: #333; }
+        .td-highlight {
+            font-weight: 700;
+            color: #667eea;
+            text-align: center;
+        }
+        .td-sector { color: #555; }
+        .td-idx { color: #999; text-align: center; width: 30px; }
+        .td-center { text-align: center; }
+        .td-sector-name {
+            white-space: nowrap;
+            font-weight: 500;
+            cursor: pointer;
+            min-width: 100px;
+        }
+        .td-sector-name:hover { color: #667eea; }
+        .td-auction-amt { color: #CC0000; font-weight: 600; }
+        .td-rating { text-align: center; }
+        .rating-tag {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 11px; font-weight: 600; white-space: nowrap;
+        }
+        .rating-tag:empty { display: none; }
+        .expand-icon {
+            display: inline-block;
+            width: 16px;
+            font-size: 10px;
+            color: #999;
+            transition: transform 0.2s;
+            margin-right: 4px;
+        }
+        .expand-icon.open { transform: rotate(90deg); }
+        .sector-row { cursor: pointer; }
+        .sector-row:hover { background: #f0f2ff !important; }
+        .sector-detail td {
+            padding: 0 !important;
+            background: #fafbfd;
+        }
+        .sector-sub-table-wrap {
+            padding: 12px 20px 16px 20px;
+            max-height: 480px;
+            overflow-y: auto;
+        }
+        .sub-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .sub-table th {
+            background: #eef1f8;
+            color: #555;
+            font-weight: 600;
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+            white-space: nowrap;
+        }
+        .sub-table th.td-center { text-align: center; }
+        .sub-table td {
+            padding: 9px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            vertical-align: middle;
+        }
+        .sub-table td.td-center { text-align: center; }
+        .sub-table tbody tr:hover { background: #e0e4ff; }
+        .sub-table tbody tr:nth-child(odd) { background: #f8f9fd; }
+        .sub-table tbody tr:nth-child(even) { background: #f0f2f8; }
+        .sub-table tbody tr:nth-child(odd):hover { background: #e0e4ff; }
+        .sub-table tbody tr:nth-child(even):hover { background: #e0e4ff; }
+        .pool-tag-sm {
+            padding: 1px 6px;
+            font-size: 11px;
+        }
+        .td-bar {
+            width: 40%;
+            min-width: 60px;
+        }
+        .td-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .bar-fill {
+            height: 20px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 4px;
+            min-width: 2px;
+            transition: width 0.3s;
+        }
+        .pool-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #eef1ff;
+            color: #667eea;
+            border-radius: 10px;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        /* 表格容器滚动 */
+        .table-wrap {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        /* 观察池 Tab */
+        .pool-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .pool-tab {
+            padding: 6px 16px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #666;
+            transition: all 0.2s;
+        }
+        .pool-tab:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+        .pool-tab.active {
+            background: #667eea;
+            border-color: #667eea;
+            color: #fff;
+        }
+        .pool-panels {
+            position: relative;
+        }
+        .pool-panel {
+            display: none;
+        }
+        .pool-panel.active {
+            display: block;
+        }
+        .pool-table-wrap {
+            max-height: 500px;
+            overflow-y: auto;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .pool-empty {
+            text-align: center;
+            color: #999;
+            padding: 30px;
+            font-size: 14px;
+        }
+        .analysis-header {
+            margin-bottom: 20px;
+        }
+        .analysis-header h2 {
+            font-size: 20px;
+            color: #333;
+        }
+        .custom-legend {
+            display: flex;
+            flex-wrap: nowrap;
+            justify-content: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+            overflow-x: auto;
+            padding: 6px 0;
+        }
+        .legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            color: #555;
+            white-space: nowrap;
+        }
+        .legend-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .footer {
+            text-align: center;
+            color: #aaa;
+            font-size: 12px;
+            margin-top: 24px;
+            padding: 12px;
+        }
+        @media (max-width: 600px) {
+            body { flex-direction: column; }
+            .sidebar {
+                width: 100%;
+                min-width: 100%;
+                height: auto;
+                position: sticky;
+                top: 0;
+                flex-direction: row;
+                justify-content: center;
+                padding: 8px 0;
+                gap: 4px;
+            }
+            .sidebar-logo {
+                display: none;
+            }
+            .nav-item {
+                width: auto;
+                padding: 8px 16px;
+                border-left: none;
+                border-bottom: 3px solid transparent;
+                font-size: 13px;
+            }
+            .nav-item.active {
+                border-left-color: transparent;
+                border-bottom-color: #667eea;
+            }
+            .main-content {
+                margin-left: 0;
+                padding: 10px;
+            }
+            .header { padding: 14px; margin-bottom: 16px; }
+            .header h1 { font-size: 20px; }
+            .header .date { font-size: 12px; }
+            .cards { grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 14px; }
+            .cards-5 { grid-template-columns: repeat(5, 1fr); gap: 4px; }
+            .card { padding: 10px 6px; }
+            .card-value { font-size: 16px; }
+            .card-change { font-size: 11px; }
+            .card-title { font-size: 10px; }
+            .market-summary { grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 14px; }
+            .summary-item { padding: 8px 4px; }
+            .summary-item .value { font-size: 13px; }
+            .summary-item .label { font-size: 9px; }
+            .chart-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .screen-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .chart-section { min-width: 0; padding: 12px; margin-bottom: 12px; }
+            .chart-section h2 { font-size: 13px; margin-bottom: 8px; }
+            .chart-container { height: 150px; }
+            .chart-container.tall { height: 200px; }
+            .volume-bar-container { height: 60px; }
+            .custom-legend { flex-wrap: wrap; gap: 6px 10px; padding: 4px 0; }
+            .legend-item { font-size: 10px; gap: 3px; }
+            .legend-dot { width: 8px; height: 8px; }
+            .data-table { font-size: 12px; }
+            .data-table th, .data-table td { padding: 6px 6px; }
+            .pool-tab { padding: 5px 12px; font-size: 12px; }
+            .td-sector-name { min-width: 60px; font-size: 12px; }
+            .sector-sub-table-wrap { padding: 6px 8px 8px 8px; }
+            .sub-table { font-size: 11px; }
+            .sub-table th, .sub-table td { padding: 4px 5px; }
+            .footer { margin-top: 14px; font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+<div class="sidebar">
+    <div class="sidebar-logo">📊 大盘日报</div>
+    <div class="nav-item active" data-page="page-dashboard">大盘数据</div>
+    <div class="nav-item" data-page="page-analysis">盘面分析</div>
+</div>
+<div class="main-content">
+
+<div class="page page-dashboard" id="page-dashboard">
+    <div class="header">
+        <h1>📊 A股大盘日报</h1>
+        <div class="date">数据日期: 2026-08-11 | 更新时间: 2026-08-11 23:30 <span id="live-status"></span></div>
+    </div>
+
+    <div class="cards">
+        
+        <div class="card">
+            <div class="card-title">上证指数</div>
+            <div id="idx-sh000001" class="card-value">3,934.09</div>
+            <div id="chg-sh000001" class="card-change" style="color:#00AA00">▼ -0.82%</div>
+        </div>
+        <div class="card">
+            <div class="card-title">深证成指</div>
+            <div id="idx-sz399001" class="card-value">14,259.44</div>
+            <div id="chg-sz399001" class="card-change" style="color:#00AA00">▼ -0.40%</div>
+        </div>
+        <div class="card">
+            <div class="card-title">创业板指</div>
+            <div id="idx-sz399006" class="card-value">3,549.16</div>
+            <div id="chg-sz399006" class="card-change" style="color:#CC0000">▲ +0.34%</div>
+        </div>
+        <div class="card">
+            <div class="card-title">科创50</div>
+            <div id="idx-sh000688" class="card-value">1,709.50</div>
+            <div id="chg-sh000688" class="card-change" style="color:#00AA00">▼ -1.63%</div>
+        </div>
+    </div>
+
+    <div class="market-summary">
+        <div class="summary-item">
+            <div class="label">两市成交额(亿)</div>
+            <div id="mkt-turnover" class="value" style="color:#667eea">23,210</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">上涨家数</div>
+            <div id="mkt-up" class="value" style="color:#CC0000">1576</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">下跌家数</div>
+            <div id="mkt-down" class="value" style="color:#00AA00">3549</div>
+        </div>
+        <div class="summary-item">
+            <div class="label">涨跌停对比</div>
+            <div class="value"><span id="limit-up" style="color:#CC0000">58</span><span style="color:#999;font-size:14px">：</span><span id="limit-down" style="color:#00AA00">1</span></div>
+        </div>
+    </div>
+
+    
+    <div class="chart-section">
+        <h2>市场宽容幅度</h2>
+        <div class="cards cards-5" style="margin-bottom:16px">
+            
+        <div class="card">
+            <div class="card-title">小票将趋</div>
+            <div class="card-value" style="color:#3498db">394</div>
+            <div class="card-change" style="color:#999;font-size:11px">只</div>
+        </div>
+        <div class="card">
+            <div class="card-title">小票趋势</div>
+            <div class="card-value" style="color:#9b59b6">44</div>
+            <div class="card-change" style="color:#999;font-size:11px">只</div>
+        </div>
+        <div class="card">
+            <div class="card-title">大票将趋</div>
+            <div class="card-value" style="color:#e74c3c">65</div>
+            <div class="card-change" style="color:#999;font-size:11px">只</div>
+        </div>
+        <div class="card">
+            <div class="card-title">大票趋势</div>
+            <div class="card-value" style="color:#f39c12">7</div>
+            <div class="card-change" style="color:#999;font-size:11px">只</div>
+        </div>
+        <div class="card">
+            <div class="card-title">下头哥</div>
+            <div class="card-value" style="color:#27ae60">0</div>
+            <div class="card-change" style="color:#999;font-size:11px">只</div>
+        </div>
+        </div>
+        
+        <div class="custom-legend"><span class="legend-item"><span class="legend-dot" style="background:#9b59b6"></span>小票趋势</span>
+<span class="legend-item"><span class="legend-dot" style="background:#e74c3c"></span>大票将趋</span>
+<span class="legend-item"><span class="legend-dot" style="background:#f39c12"></span>大票趋势</span>
+<span class="legend-item"><span class="legend-dot" style="background:#27ae60"></span>下头哥</span></div>
+        <div class="chart-scroll-wrapper">
+            <div class="chart-scroll-inner" id="chart-scroll-inner" data-days="4" style="width: 1045px;">
+                <div class="chart-container tall"><canvas id="chart-screen-trend" width="1045" height="280" style="display: block; box-sizing: border-box; height: 280px; width: 1045px;"></canvas></div>
+                <div class="volume-bar-container"><canvas id="chart-volume-bar" width="1045" height="80" style="display: block; box-sizing: border-box; height: 80px; width: 1045px;"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        数据来源: 腾讯自选股 / 东方财富 | 自动生成 | 仅供参考，不构成投资建议
+    </div>
+</div>
+
+
+    <div class="page page-analysis" id="page-analysis" style="display:none;">
+        <div class="analysis-header">
+            <h2>盘面分析 - 2026-08-11</h2>
+        </div>
+
+        <div class="chart-section">
+            <h2>板块分布</h2>
+            <div class="table-wrap">
+                <table class="data-table sector-table">
+                    <thead>
+                        <tr>
+                            <th>板块</th>
+                            <th class="td-center">大票将趋</th>
+                            <th class="td-center">大票趋势</th>
+                            <th class="td-center">合计</th>
+                            <th>分布</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            <tr class="sector-row" data-sector="电子" onclick="toggleSectorDetail('电子', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-电子">▶</span>电子</td>
+                <td class="td-num td-center">20</td>
+                <td class="td-num td-center">0</td>
+                <td class="td-num td-center td-total">20</td>
+                <td class="td-bar"><div class="bar-fill" style="width:100%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-电子" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">三环集团</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.48%</td>
+                        <td class="td-num td-center">130.05</td>
+                        <td class="td-num td-center" style="color:#CC0000">+28.98%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">深南电路</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.23%</td>
+                        <td class="td-num td-center">380.70</td>
+                        <td class="td-num td-center" style="color:#CC0000">+19.68%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">江波龙</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.21%</td>
+                        <td class="td-num td-center">417.50</td>
+                        <td class="td-num td-center" style="color:#CC0000">+26.52%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">佰维存储</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+0.02%</td>
+                        <td class="td-num td-center">242.06</td>
+                        <td class="td-num td-center" style="color:#CC0000">+15.37%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">圣邦股份</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+4.73%</td>
+                        <td class="td-num td-center">115.49</td>
+                        <td class="td-num td-center" style="color:#CC0000">+21.58%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">芯联集成-U</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+8.14%</td>
+                        <td class="td-num td-center">9.17</td>
+                        <td class="td-num td-center" style="color:#CC0000">+24.93%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">风华高科</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+6.73%</td>
+                        <td class="td-num td-center">65.85</td>
+                        <td class="td-num td-center" style="color:#CC0000">+52.47%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">普冉股份</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.67%</td>
+                        <td class="td-num td-center">384.50</td>
+                        <td class="td-num td-center" style="color:#CC0000">+24.04%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">金安国纪</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.83%</td>
+                        <td class="td-num td-center">68.00</td>
+                        <td class="td-num td-center" style="color:#CC0000">+18.63%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">奥比中光-W</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+4.53%</td>
+                        <td class="td-num td-center">114.38</td>
+                        <td class="td-num td-center" style="color:#CC0000">+30.11%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">有研新材</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                        <td class="td-num td-center">52.65</td>
+                        <td class="td-num td-center" style="color:#CC0000">+21.03%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">顺络电子</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+3.49%</td>
+                        <td class="td-num td-center">49.78</td>
+                        <td class="td-num td-center" style="color:#CC0000">+19.43%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">超颖电子</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+4.47%</td>
+                        <td class="td-num td-center">89.55</td>
+                        <td class="td-num td-center" style="color:#CC0000">+16.75%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">洁美科技</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                        <td class="td-num td-center">81.32</td>
+                        <td class="td-num td-center" style="color:#CC0000">+38.61%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">科翔股份</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+7.60%</td>
+                        <td class="td-num td-center">75.30</td>
+                        <td class="td-num td-center" style="color:#CC0000">+30.55%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">苏州天脉</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+3.87%</td>
+                        <td class="td-num td-center">257.10</td>
+                        <td class="td-num td-center" style="color:#CC0000">+24.26%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">联芸科技</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+9.99%</td>
+                        <td class="td-num td-center">63.63</td>
+                        <td class="td-num td-center" style="color:#CC0000">+21.71%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">乐鑫科技</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+3.13%</td>
+                        <td class="td-num td-center">114.47</td>
+                        <td class="td-num td-center" style="color:#CC0000">+15.75%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">旭光电子</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+7.69%</td>
+                        <td class="td-num td-center">29.40</td>
+                        <td class="td-num td-center" style="color:#CC0000">+17.55%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">宝鼎科技</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+4.30%</td>
+                        <td class="td-num td-center">54.61</td>
+                        <td class="td-num td-center" style="color:#CC0000">+49.41%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="sector-row" data-sector="医药生物" onclick="toggleSectorDetail('医药生物', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-医药生物">▶</span>医药生物</td>
+                <td class="td-num td-center">6</td>
+                <td class="td-num td-center">3</td>
+                <td class="td-num td-center td-total">9</td>
+                <td class="td-bar"><div class="bar-fill" style="width:45%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-医药生物" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">康龙化成</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                        <td class="td-num td-center">47.59</td>
+                        <td class="td-num td-center" style="color:#CC0000">+26.17%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">诺诚健华</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+6.95%</td>
+                        <td class="td-num td-center">31.40</td>
+                        <td class="td-num td-center" style="color:#CC0000">+15.27%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">甘李药业</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                        <td class="td-num td-center">74.47</td>
+                        <td class="td-num td-center" style="color:#CC0000">+15.31%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">华大智造</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+5.45%</td>
+                        <td class="td-num td-center">65.00</td>
+                        <td class="td-num td-center" style="color:#CC0000">+36.41%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">翰宇药业</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.58%</td>
+                        <td class="td-num td-center">25.89</td>
+                        <td class="td-num td-center" style="color:#CC0000">+26.35%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">哈药股份</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+9.97%</td>
+                        <td class="td-num td-center">8.27</td>
+                        <td class="td-num td-center" style="color:#CC0000">+44.08%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">康龙化成</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票趋势</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                        <td class="td-num td-center">47.59</td>
+                        <td class="td-num td-center" style="color:#CC0000">+26.17%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">甘李药业</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票趋势</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                        <td class="td-num td-center">74.47</td>
+                        <td class="td-num td-center" style="color:#CC0000">+15.31%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">哈药股份</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票趋势</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+9.97%</td>
+                        <td class="td-num td-center">8.27</td>
+                        <td class="td-num td-center" style="color:#CC0000">+44.08%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="sector-row" data-sector="机械设备" onclick="toggleSectorDetail('机械设备', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-机械设备">▶</span>机械设备</td>
+                <td class="td-num td-center">7</td>
+                <td class="td-num td-center">0</td>
+                <td class="td-num td-center td-total">7</td>
+                <td class="td-bar"><div class="bar-fill" style="width:35%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-机械设备" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">罗博特科</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+0.13%</td>
+                        <td class="td-num td-center">488.80</td>
+                        <td class="td-num td-center" style="color:#CC0000">+20.99%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">绿的谐波</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+9.32%</td>
+                        <td class="td-num td-center">365.00</td>
+                        <td class="td-num td-center" style="color:#CC0000">+24.56%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">埃斯顿</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+4.30%</td>
+                        <td class="td-num td-center">36.12</td>
+                        <td class="td-num td-center" style="color:#CC0000">+19.05%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">申菱环境</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.33%</td>
+                        <td class="td-num td-center">91.50</td>
+                        <td class="td-num td-center" style="color:#CC0000">+16.29%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">杰普特</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+0.70%</td>
+                        <td class="td-num td-center">343.00</td>
+                        <td class="td-num td-center" style="color:#CC0000">+17.45%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">昊志机电</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+4.31%</td>
+                        <td class="td-num td-center">75.35</td>
+                        <td class="td-num td-center" style="color:#CC0000">+19.49%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">长盛轴承</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+4.97%</td>
+                        <td class="td-num td-center">68.66</td>
+                        <td class="td-num td-center" style="color:#CC0000">+22.17%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="sector-row" data-sector="计算机" onclick="toggleSectorDetail('计算机', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-计算机">▶</span>计算机</td>
+                <td class="td-num td-center">5</td>
+                <td class="td-num td-center">2</td>
+                <td class="td-num td-center td-total">7</td>
+                <td class="td-bar"><div class="bar-fill" style="width:35%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-计算机" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">深信服</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.20%</td>
+                        <td class="td-num td-center">125.55</td>
+                        <td class="td-num td-center" style="color:#CC0000">+22.49%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">用友网络</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+0.51%</td>
+                        <td class="td-num td-center">11.92</td>
+                        <td class="td-num td-center" style="color:#CC0000">+25.08%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">财富趋势</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+0.63%</td>
+                        <td class="td-num td-center">80.32</td>
+                        <td class="td-num td-center" style="color:#CC0000">+23.93%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">智微智能</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+0.47%</td>
+                        <td class="td-num td-center">82.79</td>
+                        <td class="td-num td-center" style="color:#CC0000">+16.13%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">合合信息</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+0.99%</td>
+                        <td class="td-num td-center">122.88</td>
+                        <td class="td-num td-center" style="color:#CC0000">+29.48%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">深信服</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票趋势</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.20%</td>
+                        <td class="td-num td-center">125.55</td>
+                        <td class="td-num td-center" style="color:#CC0000">+22.49%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">用友网络</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票趋势</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+0.51%</td>
+                        <td class="td-num td-center">11.92</td>
+                        <td class="td-num td-center" style="color:#CC0000">+25.08%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="sector-row" data-sector="基础化工" onclick="toggleSectorDetail('基础化工', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-基础化工">▶</span>基础化工</td>
+                <td class="td-num td-center">4</td>
+                <td class="td-num td-center">0</td>
+                <td class="td-num td-center td-total">4</td>
+                <td class="td-bar"><div class="bar-fill" style="width:20%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-基础化工" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">上纬新材</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.71%</td>
+                        <td class="td-num td-center">167.00</td>
+                        <td class="td-num td-center" style="color:#CC0000">+34.05%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">东材科技</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+5.05%</td>
+                        <td class="td-num td-center">47.67</td>
+                        <td class="td-num td-center" style="color:#CC0000">+22.42%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">百合花</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                        <td class="td-num td-center">75.22</td>
+                        <td class="td-num td-center" style="color:#CC0000">+22.33%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">斯迪克</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+3.29%</td>
+                        <td class="td-num td-center">48.66</td>
+                        <td class="td-num td-center" style="color:#CC0000">+17.96%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="sector-row" data-sector="通信" onclick="toggleSectorDetail('通信', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-通信">▶</span>通信</td>
+                <td class="td-num td-center">4</td>
+                <td class="td-num td-center">0</td>
+                <td class="td-num td-center td-total">4</td>
+                <td class="td-bar"><div class="bar-fill" style="width:20%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-通信" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">中瓷电子</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+4.35%</td>
+                        <td class="td-num td-center">117.64</td>
+                        <td class="td-num td-center" style="color:#CC0000">+17.31%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">长芯博创</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.61%</td>
+                        <td class="td-num td-center">173.91</td>
+                        <td class="td-num td-center" style="color:#CC0000">+17.77%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">联特科技</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.41%</td>
+                        <td class="td-num td-center">293.91</td>
+                        <td class="td-num td-center" style="color:#CC0000">+35.44%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">鼎通科技</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.08%</td>
+                        <td class="td-num td-center">243.97</td>
+                        <td class="td-num td-center" style="color:#CC0000">+20.77%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="sector-row" data-sector="电力设备" onclick="toggleSectorDetail('电力设备', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-电力设备">▶</span>电力设备</td>
+                <td class="td-num td-center">3</td>
+                <td class="td-num td-center">0</td>
+                <td class="td-num td-center td-total">3</td>
+                <td class="td-bar"><div class="bar-fill" style="width:15%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-电力设备" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">中国动力</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.94%</td>
+                        <td class="td-num td-center">32.61</td>
+                        <td class="td-num td-center" style="color:#CC0000">+18.59%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">卧龙电驱</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+3.39%</td>
+                        <td class="td-num td-center">36.65</td>
+                        <td class="td-num td-center" style="color:#CC0000">+26.16%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">震裕科技</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+5.00%</td>
+                        <td class="td-num td-center">105.68</td>
+                        <td class="td-num td-center" style="color:#CC0000">+16.48%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="sector-row" data-sector="房地产" onclick="toggleSectorDetail('房地产', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-房地产">▶</span>房地产</td>
+                <td class="td-num td-center">2</td>
+                <td class="td-num td-center">1</td>
+                <td class="td-num td-center td-total">3</td>
+                <td class="td-bar"><div class="bar-fill" style="width:15%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-房地产" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">陆家嘴</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.34%</td>
+                        <td class="td-num td-center">9.61</td>
+                        <td class="td-num td-center" style="color:#CC0000">+30.57%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">深深房Ａ</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+3.00%</td>
+                        <td class="td-num td-center">22.98</td>
+                        <td class="td-num td-center" style="color:#CC0000">+21.33%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">陆家嘴</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票趋势</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+2.34%</td>
+                        <td class="td-num td-center">9.61</td>
+                        <td class="td-num td-center" style="color:#CC0000">+30.57%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="sector-row" data-sector="汽车" onclick="toggleSectorDetail('汽车', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-汽车">▶</span>汽车</td>
+                <td class="td-num td-center">3</td>
+                <td class="td-num td-center">0</td>
+                <td class="td-num td-center td-total">3</td>
+                <td class="td-bar"><div class="bar-fill" style="width:15%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-汽车" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">斯菱智驱</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+20.00%</td>
+                        <td class="td-num td-center">87.42</td>
+                        <td class="td-num td-center" style="color:#CC0000">+23.72%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">浙江荣泰</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+4.94%</td>
+                        <td class="td-num td-center">56.46</td>
+                        <td class="td-num td-center" style="color:#CC0000">+25.13%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">中鼎股份</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.61%</td>
+                        <td class="td-num td-center">19.58</td>
+                        <td class="td-num td-center" style="color:#CC0000">+17.46%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+            <tr class="sector-row" data-sector="国防军工" onclick="toggleSectorDetail('国防军工', this)">
+                <td class="td-sector-name"><span class="expand-icon" id="icon-国防军工">▶</span>国防军工</td>
+                <td class="td-num td-center">2</td>
+                <td class="td-num td-center">0</td>
+                <td class="td-num td-center td-total">2</td>
+                <td class="td-bar"><div class="bar-fill" style="width:10%"></div></td>
+            </tr>
+            <tr class="sector-detail" id="detail-国防军工" style="display:none;">
+                <td colspan="5">
+                    <div class="sector-sub-table-wrap">
+                        <table class="sub-table">
+                            <thead><tr>
+                                <th>名称</th><th class="td-center">来源</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">10日涨幅</th>
+                            </tr></thead>
+                            <tbody>
+                    <tr>
+                        <td class="td-name">菲利华</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.14%</td>
+                        <td class="td-num td-center">87.94</td>
+                        <td class="td-num td-center" style="color:#CC0000">+15.56%</td>
+                    </tr>
+                    <tr>
+                        <td class="td-name">宏达电子</td>
+                        <td class="td-num td-center"><span class="pool-tag pool-tag-sm">大票将趋</span></td>
+                        <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                        <td class="td-num td-center">55.09</td>
+                        <td class="td-num td-center" style="color:#CC0000">+15.25%</td>
+                    </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </td>
+            </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2>交叉选股（2+池命中）</h2>
+            <div class="table-wrap">
+                <table class="data-table cross-table">
+                    <thead>
+                        <tr>
+                            <th>名称</th>
+                            <th class="td-center">板块</th>
+                            <th class="td-center">命中数</th>
+                            <th>所在池</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            <tr>
+                <td class="td-name">哈药股份</td>
+                <td class="td-sector td-center">医药生物</td>
+                <td class="td-num td-highlight">4</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">大票趋势</span><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">甘李药业</td>
+                <td class="td-sector td-center">医药生物</td>
+                <td class="td-num td-highlight">4</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">大票趋势</span><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">有研新材</td>
+                <td class="td-sector td-center">电子</td>
+                <td class="td-num td-highlight">3</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">风华高科</td>
+                <td class="td-sector td-center">电子</td>
+                <td class="td-num td-highlight">3</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">儒意电影</td>
+                <td class="td-sector td-center">传媒</td>
+                <td class="td-num td-highlight">3</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">江波龙</td>
+                <td class="td-sector td-center">电子</td>
+                <td class="td-num td-highlight">3</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">用友网络</td>
+                <td class="td-sector td-center">计算机</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">大票趋势</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">陆家嘴</td>
+                <td class="td-sector td-center">房地产</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">大票趋势</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">太极实业</td>
+                <td class="td-sector td-center">建筑装饰</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">热搜榜</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">百花医药</td>
+                <td class="td-sector td-center">医药生物</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">药明康德</td>
+                <td class="td-sector td-center">医药生物</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">长鑫科技</td>
+                <td class="td-sector td-center">电子</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">九号公司-WD</td>
+                <td class="td-sector td-center">未分类</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">大票趋势</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">云南锗业</td>
+                <td class="td-sector td-center">有色金属</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">中际旭创</td>
+                <td class="td-sector td-center">通信</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">深信服</td>
+                <td class="td-sector td-center">计算机</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">大票趋势</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">康龙化成</td>
+                <td class="td-sector td-center">医药生物</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">大票将趋</span><span class="pool-tag">大票趋势</span></td>
+            </tr>
+            <tr>
+                <td class="td-name">超纯应材</td>
+                <td class="td-sector td-center">未分类</td>
+                <td class="td-num td-highlight">2</td>
+                <td class="td-tags"><span class="pool-tag">热搜榜</span><span class="pool-tag">竞价金额前20</span></td>
+            </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2>观察池</h2>
+            <div class="pool-tabs"><button class="pool-tab active" data-pool="daqipiao_jiangqu">大票将趋 (65)</button><button class="pool-tab " data-pool="qushi_ge">大票趋势 (7)</button><button class="pool-tab " data-pool="hot_stock">热搜榜 (20)</button><button class="pool-tab " data-pool="auction_top20">竞价金额前20 (20)</button>
+            </div>
+            <div class="pool-panels">
+            <div class="pool-panel active" data-pool="daqipiao_jiangqu">
+                <div class="pool-table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th class="td-center">#</th><th>名称</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th></tr></thead>
+                        <tbody>
+                <tr>
+                    <td class="td-idx td-center">1</td>
+                    <td class="td-name">三环集团</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.48%</td>
+                    <td class="td-num td-center">130.05</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">2</td>
+                    <td class="td-name">深南电路</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.23%</td>
+                    <td class="td-num td-center">380.70</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">3</td>
+                    <td class="td-name">江波龙</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.21%</td>
+                    <td class="td-num td-center">417.50</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">4</td>
+                    <td class="td-name">国际复材</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.33%</td>
+                    <td class="td-num td-center">39.39</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">5</td>
+                    <td class="td-name">佰维存储</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.02%</td>
+                    <td class="td-num td-center">242.06</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">6</td>
+                    <td class="td-name">康龙化成</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                    <td class="td-num td-center">47.59</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">7</td>
+                    <td class="td-name">罗博特科</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.13%</td>
+                    <td class="td-num td-center">488.80</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">8</td>
+                    <td class="td-name">圣邦股份</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.73%</td>
+                    <td class="td-num td-center">115.49</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">9</td>
+                    <td class="td-name">芯联集成-U</td>
+                    <td class="td-num td-center" style="color:#CC0000">+8.14%</td>
+                    <td class="td-num td-center">9.17</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">10</td>
+                    <td class="td-name">风华高科</td>
+                    <td class="td-num td-center" style="color:#CC0000">+6.73%</td>
+                    <td class="td-num td-center">65.85</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">11</td>
+                    <td class="td-name">中国动力</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.94%</td>
+                    <td class="td-num td-center">32.61</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">12</td>
+                    <td class="td-name">上纬新材</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.71%</td>
+                    <td class="td-num td-center">167.00</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">13</td>
+                    <td class="td-name">绿的谐波</td>
+                    <td class="td-num td-center" style="color:#CC0000">+9.32%</td>
+                    <td class="td-num td-center">365.00</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">14</td>
+                    <td class="td-name">卧龙电驱</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.39%</td>
+                    <td class="td-num td-center">36.65</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">15</td>
+                    <td class="td-name">普冉股份</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.67%</td>
+                    <td class="td-num td-center">384.50</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">16</td>
+                    <td class="td-name">诺诚健华</td>
+                    <td class="td-num td-center" style="color:#CC0000">+6.95%</td>
+                    <td class="td-num td-center">31.40</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">17</td>
+                    <td class="td-name">深信服</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.20%</td>
+                    <td class="td-num td-center">125.55</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">18</td>
+                    <td class="td-name">中瓷电子</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.35%</td>
+                    <td class="td-num td-center">117.64</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">19</td>
+                    <td class="td-name">长芯博创</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.61%</td>
+                    <td class="td-num td-center">173.91</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">20</td>
+                    <td class="td-name">金安国纪</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.83%</td>
+                    <td class="td-num td-center">68.00</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">21</td>
+                    <td class="td-name">陆家嘴</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.34%</td>
+                    <td class="td-num td-center">9.61</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">22</td>
+                    <td class="td-name">东材科技</td>
+                    <td class="td-num td-center" style="color:#CC0000">+5.05%</td>
+                    <td class="td-num td-center">47.67</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">23</td>
+                    <td class="td-name">奥比中光-W</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.53%</td>
+                    <td class="td-num td-center">114.38</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">24</td>
+                    <td class="td-name">菲利华</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.14%</td>
+                    <td class="td-num td-center">87.94</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">25</td>
+                    <td class="td-name">有研新材</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                    <td class="td-num td-center">52.65</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">26</td>
+                    <td class="td-name">甘李药业</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                    <td class="td-num td-center">74.47</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">27</td>
+                    <td class="td-name">太极实业</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.02%</td>
+                    <td class="td-num td-center">21.20</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">28</td>
+                    <td class="td-name">用友网络</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.51%</td>
+                    <td class="td-num td-center">11.92</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">29</td>
+                    <td class="td-name">顺络电子</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.49%</td>
+                    <td class="td-num td-center">49.78</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">30</td>
+                    <td class="td-name">超颖电子</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.47%</td>
+                    <td class="td-num td-center">89.55</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">31</td>
+                    <td class="td-name">联特科技</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.41%</td>
+                    <td class="td-num td-center">293.91</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">32</td>
+                    <td class="td-name">洁美科技</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                    <td class="td-num td-center">81.32</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">33</td>
+                    <td class="td-name">埃斯顿</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.30%</td>
+                    <td class="td-num td-center">36.12</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">34</td>
+                    <td class="td-name">申菱环境</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.33%</td>
+                    <td class="td-num td-center">91.50</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">35</td>
+                    <td class="td-name">鼎通科技</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.08%</td>
+                    <td class="td-num td-center">243.97</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">36</td>
+                    <td class="td-name">九号公司-WD</td>
+                    <td class="td-num td-center" style="color:#CC0000">+7.44%</td>
+                    <td class="td-num td-center">45.50</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">37</td>
+                    <td class="td-name">科翔股份</td>
+                    <td class="td-num td-center" style="color:#CC0000">+7.60%</td>
+                    <td class="td-num td-center">75.30</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">38</td>
+                    <td class="td-name">杰普特</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.70%</td>
+                    <td class="td-num td-center">343.00</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">39</td>
+                    <td class="td-name">盈峰环境</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.55%</td>
+                    <td class="td-num td-center">9.33</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">40</td>
+                    <td class="td-name">百合花</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                    <td class="td-num td-center">75.22</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">41</td>
+                    <td class="td-name">斯迪克</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.29%</td>
+                    <td class="td-num td-center">48.66</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">42</td>
+                    <td class="td-name">苏州天脉</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.87%</td>
+                    <td class="td-num td-center">257.10</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">43</td>
+                    <td class="td-name">铂科新材</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.01%</td>
+                    <td class="td-num td-center">72.60</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">44</td>
+                    <td class="td-name">斯菱智驱</td>
+                    <td class="td-num td-center" style="color:#CC0000">+20.00%</td>
+                    <td class="td-num td-center">87.42</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">45</td>
+                    <td class="td-name">联芸科技</td>
+                    <td class="td-num td-center" style="color:#CC0000">+9.99%</td>
+                    <td class="td-num td-center">63.63</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">46</td>
+                    <td class="td-name">财富趋势</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.63%</td>
+                    <td class="td-num td-center">80.32</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">47</td>
+                    <td class="td-name">智微智能</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.47%</td>
+                    <td class="td-num td-center">82.79</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">48</td>
+                    <td class="td-name">华大智造</td>
+                    <td class="td-num td-center" style="color:#CC0000">+5.45%</td>
+                    <td class="td-num td-center">65.00</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">49</td>
+                    <td class="td-name">湖南白银</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.02%</td>
+                    <td class="td-num td-center">9.59</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">50</td>
+                    <td class="td-name">乐鑫科技</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.13%</td>
+                    <td class="td-num td-center">114.47</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">51</td>
+                    <td class="td-name">浙江荣泰</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.94%</td>
+                    <td class="td-num td-center">56.46</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">52</td>
+                    <td class="td-name">中鼎股份</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.61%</td>
+                    <td class="td-num td-center">19.58</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">53</td>
+                    <td class="td-name">震裕科技</td>
+                    <td class="td-num td-center" style="color:#CC0000">+5.00%</td>
+                    <td class="td-num td-center">105.68</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">54</td>
+                    <td class="td-name">杭钢股份</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                    <td class="td-num td-center">7.37</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">55</td>
+                    <td class="td-name">旭光电子</td>
+                    <td class="td-num td-center" style="color:#CC0000">+7.69%</td>
+                    <td class="td-num td-center">29.40</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">56</td>
+                    <td class="td-name">合合信息</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.99%</td>
+                    <td class="td-num td-center">122.88</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">57</td>
+                    <td class="td-name">易点天下</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.18%</td>
+                    <td class="td-num td-center">38.02</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">58</td>
+                    <td class="td-name">深深房Ａ</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.00%</td>
+                    <td class="td-num td-center">22.98</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">59</td>
+                    <td class="td-name">昊志机电</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.31%</td>
+                    <td class="td-num td-center">75.35</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">60</td>
+                    <td class="td-name">翰宇药业</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.58%</td>
+                    <td class="td-num td-center">25.89</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">61</td>
+                    <td class="td-name">宏达电子</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                    <td class="td-num td-center">55.09</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">62</td>
+                    <td class="td-name">儒意电影</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.91%</td>
+                    <td class="td-num td-center">10.12</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">63</td>
+                    <td class="td-name">宝鼎科技</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.30%</td>
+                    <td class="td-num td-center">54.61</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">64</td>
+                    <td class="td-name">哈药股份</td>
+                    <td class="td-num td-center" style="color:#CC0000">+9.97%</td>
+                    <td class="td-num td-center">8.27</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">65</td>
+                    <td class="td-name">长盛轴承</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.97%</td>
+                    <td class="td-num td-center">68.66</td>
+                </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="pool-panel " data-pool="qushi_ge">
+                <div class="pool-table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th class="td-center">#</th><th>名称</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th></tr></thead>
+                        <tbody>
+                <tr>
+                    <td class="td-idx td-center">1</td>
+                    <td class="td-name">康龙化成</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                    <td class="td-num td-center">47.59</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">2</td>
+                    <td class="td-name">深信服</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.20%</td>
+                    <td class="td-num td-center">125.55</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">3</td>
+                    <td class="td-name">陆家嘴</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.34%</td>
+                    <td class="td-num td-center">9.61</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">4</td>
+                    <td class="td-name">甘李药业</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                    <td class="td-num td-center">74.47</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">5</td>
+                    <td class="td-name">用友网络</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.51%</td>
+                    <td class="td-num td-center">11.92</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">6</td>
+                    <td class="td-name">九号公司-WD</td>
+                    <td class="td-num td-center" style="color:#CC0000">+7.44%</td>
+                    <td class="td-num td-center">45.50</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">7</td>
+                    <td class="td-name">哈药股份</td>
+                    <td class="td-num td-center" style="color:#CC0000">+9.97%</td>
+                    <td class="td-num td-center">8.27</td>
+                </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="pool-panel " data-pool="hot_stock">
+                <div class="pool-table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th class="td-center">#</th><th>名称</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th></tr></thead>
+                        <tbody>
+                <tr>
+                    <td class="td-idx td-center">1</td>
+                    <td class="td-name">宇树科技-W</td>
+                    <td class="td-num td-center" style="color:#666666">+0.00%</td>
+                    <td class="td-num td-center">150.80</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">2</td>
+                    <td class="td-name">风华高科</td>
+                    <td class="td-num td-center" style="color:#CC0000">+6.73%</td>
+                    <td class="td-num td-center">65.85</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">3</td>
+                    <td class="td-name">江波龙</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.21%</td>
+                    <td class="td-num td-center">417.50</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">4</td>
+                    <td class="td-name">哈药股份</td>
+                    <td class="td-num td-center" style="color:#CC0000">+9.97%</td>
+                    <td class="td-num td-center">8.27</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">5</td>
+                    <td class="td-name">长鑫科技</td>
+                    <td class="td-num td-center" style="color:#00AA00">-1.75%</td>
+                    <td class="td-num td-center">50.40</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">6</td>
+                    <td class="td-name">太极实业</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.02%</td>
+                    <td class="td-num td-center">21.20</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">7</td>
+                    <td class="td-name">甘咨询</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.03%</td>
+                    <td class="td-num td-center">12.73</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">8</td>
+                    <td class="td-name">多氟多</td>
+                    <td class="td-num td-center" style="color:#00AA00">-3.19%</td>
+                    <td class="td-num td-center">37.28</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">9</td>
+                    <td class="td-name">百花医药</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.01%</td>
+                    <td class="td-num td-center">12.75</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">10</td>
+                    <td class="td-name">N超纯应材</td>
+                    <td class="td-num td-center" style="color:#CC0000">+662.24%</td>
+                    <td class="td-num td-center">503.00</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">11</td>
+                    <td class="td-name">药明康德</td>
+                    <td class="td-num td-center" style="color:#00AA00">-0.70%</td>
+                    <td class="td-num td-center">160.21</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">12</td>
+                    <td class="td-name">立新能源</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.01%</td>
+                    <td class="td-num td-center">15.93</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">13</td>
+                    <td class="td-name">儒意电影</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.91%</td>
+                    <td class="td-num td-center">10.12</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">14</td>
+                    <td class="td-name">甘李药业</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                    <td class="td-num td-center">74.47</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">15</td>
+                    <td class="td-name">中际旭创</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.59%</td>
+                    <td class="td-num td-center">886.96</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">16</td>
+                    <td class="td-name">国瓷材料</td>
+                    <td class="td-num td-center" style="color:#00AA00">-4.24%</td>
+                    <td class="td-num td-center">72.88</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">17</td>
+                    <td class="td-name">云南锗业</td>
+                    <td class="td-num td-center" style="color:#00AA00">-2.24%</td>
+                    <td class="td-num td-center">100.28</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">18</td>
+                    <td class="td-name">一鸣食品</td>
+                    <td class="td-num td-center" style="color:#CC0000">+9.99%</td>
+                    <td class="td-num td-center">27.63</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">19</td>
+                    <td class="td-name">有研新材</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                    <td class="td-num td-center">52.65</td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">20</td>
+                    <td class="td-name">圣阳股份</td>
+                    <td class="td-num td-center" style="color:#00AA00">-0.10%</td>
+                    <td class="td-num td-center">20.97</td>
+                </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="pool-panel " data-pool="auction_top20">
+                <div class="pool-table-wrap">
+                    <table class="data-table">
+                        <thead><tr><th class="td-center">#</th><th>名称</th><th class="td-center">竞价金额(万)</th><th class="td-center">竞价涨幅</th><th class="td-center">涨跌幅</th><th class="td-center">收盘价</th><th class="td-center">评级</th></tr></thead>
+                        <tbody>
+                <tr>
+                    <td class="td-idx td-center">1</td>
+                    <td class="td-name">百花医药</td>
+                    <td class="td-num td-auction-amt td-center">44,930</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.01%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.01%</td>
+                    <td class="td-num td-center">12.75</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">2</td>
+                    <td class="td-name">超纯应材</td>
+                    <td class="td-num td-auction-amt td-center">39,373</td>
+                    <td class="td-num td-center" style="color:#CC0000">+581.92%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+662.24%</td>
+                    <td class="td-num td-center">503.00</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(224, 224, 224); color: rgb(102, 102, 102);"></span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">3</td>
+                    <td class="td-name">中际旭创</td>
+                    <td class="td-num td-auction-amt td-center">36,016</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.80%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.59%</td>
+                    <td class="td-num td-center">886.96</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">4</td>
+                    <td class="td-name">药明康德</td>
+                    <td class="td-num td-auction-amt td-center">22,089</td>
+                    <td class="td-num td-center" style="color:#00AA00">-0.58%</td>
+                    <td class="td-num td-center" style="color:#00AA00">-0.70%</td>
+                    <td class="td-num td-center">160.21</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">5</td>
+                    <td class="td-name">云南锗业</td>
+                    <td class="td-num td-auction-amt td-center">20,524</td>
+                    <td class="td-num td-center" style="color:#00AA00">-4.54%</td>
+                    <td class="td-num td-center" style="color:#00AA00">-2.24%</td>
+                    <td class="td-num td-center">100.28</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 243, 224); color: rgb(230, 126, 0);">混战</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">6</td>
+                    <td class="td-name">寒武纪</td>
+                    <td class="td-num td-auction-amt td-center">20,003</td>
+                    <td class="td-num td-center" style="color:#00AA00">-2.14%</td>
+                    <td class="td-num td-center" style="color:#00AA00">-2.97%</td>
+                    <td class="td-num td-center">1,090.64</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(224, 255, 224); color: rgb(0, 170, 0);">看空</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">7</td>
+                    <td class="td-name">新易盛</td>
+                    <td class="td-num td-auction-amt td-center">19,785</td>
+                    <td class="td-num td-center" style="color:#CC0000">+2.65%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.93%</td>
+                    <td class="td-num td-center">415.30</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">8</td>
+                    <td class="td-name">中国卫星</td>
+                    <td class="td-num td-auction-amt td-center">17,724</td>
+                    <td class="td-num td-center" style="color:#00AA00">-4.86%</td>
+                    <td class="td-num td-center" style="color:#00AA00">-8.12%</td>
+                    <td class="td-num td-center">63.52</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 243, 224); color: rgb(230, 126, 0);">混战</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">9</td>
+                    <td class="td-name">哈药股份</td>
+                    <td class="td-num td-auction-amt td-center">17,579</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.19%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+9.97%</td>
+                    <td class="td-num td-center">8.27</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">10</td>
+                    <td class="td-name">江波龙</td>
+                    <td class="td-num td-auction-amt td-center">17,333</td>
+                    <td class="td-num td-center" style="color:#00AA00">-0.12%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.21%</td>
+                    <td class="td-num td-center">417.50</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 243, 224); color: rgb(230, 126, 0);">混战</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">11</td>
+                    <td class="td-name">金风科技</td>
+                    <td class="td-num td-auction-amt td-center">16,779</td>
+                    <td class="td-num td-center" style="color:#00AA00">-7.70%</td>
+                    <td class="td-num td-center" style="color:#00AA00">-8.12%</td>
+                    <td class="td-num td-center">19.92</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(224, 255, 224); color: rgb(0, 170, 0);">看空</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">12</td>
+                    <td class="td-name">联创光电</td>
+                    <td class="td-num td-auction-amt td-center">16,003</td>
+                    <td class="td-num td-center" style="color:#00AA00">-6.09%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+0.15%</td>
+                    <td class="td-num td-center">20.55</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">13</td>
+                    <td class="td-name">东山精密</td>
+                    <td class="td-num td-auction-amt td-center">15,742</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.38%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+4.26%</td>
+                    <td class="td-num td-center">193.87</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">14</td>
+                    <td class="td-name">兆易创新</td>
+                    <td class="td-num td-auction-amt td-center">15,479</td>
+                    <td class="td-num td-center" style="color:#00AA00">-1.50%</td>
+                    <td class="td-num td-center" style="color:#00AA00">-0.18%</td>
+                    <td class="td-num td-center">402.29</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">15</td>
+                    <td class="td-name">甘李药业</td>
+                    <td class="td-num td-auction-amt td-center">15,189</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+10.00%</td>
+                    <td class="td-num td-center">74.47</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">16</td>
+                    <td class="td-name">长鑫科技</td>
+                    <td class="td-num td-auction-amt td-center">15,164</td>
+                    <td class="td-num td-center" style="color:#00AA00">-0.96%</td>
+                    <td class="td-num td-center" style="color:#00AA00">-1.75%</td>
+                    <td class="td-num td-center">50.40</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(224, 224, 224); color: rgb(102, 102, 102);"></span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">17</td>
+                    <td class="td-name">国仪公司</td>
+                    <td class="td-num td-auction-amt td-center">13,365</td>
+                    <td class="td-num td-center" style="color:#CC0000">+418.38%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+419.46%</td>
+                    <td class="td-num td-center">110.23</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">18</td>
+                    <td class="td-name">有研新材</td>
+                    <td class="td-num td-auction-amt td-center">12,028</td>
+                    <td class="td-num td-center" style="color:#00AA00">-2.67%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.19%</td>
+                    <td class="td-num td-center">52.65</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 243, 224); color: rgb(230, 126, 0);">混战</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">19</td>
+                    <td class="td-name">风华高科</td>
+                    <td class="td-num td-auction-amt td-center">11,944</td>
+                    <td class="td-num td-center" style="color:#00AA00">-1.33%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+6.73%</td>
+                    <td class="td-num td-center">65.85</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 224, 224); color: rgb(204, 0, 0);">看多</span></td>
+                </tr>
+                <tr>
+                    <td class="td-idx td-center">20</td>
+                    <td class="td-name">儒意电影</td>
+                    <td class="td-num td-auction-amt td-center">11,936</td>
+                    <td class="td-num td-center" style="color:#CC0000">+3.73%</td>
+                    <td class="td-num td-center" style="color:#CC0000">+1.91%</td>
+                    <td class="td-num td-center">10.12</td>
+                    <td class="td-rating"><span class="rating-tag" style="background: rgb(255, 243, 224); color: rgb(230, 126, 0);">混战</span></td>
+                </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+// 页面切换
+document.querySelectorAll('.nav-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+        var targetPage = this.getAttribute('data-page');
+        document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+        this.classList.add('active');
+        document.querySelectorAll('.page').forEach(function(p) {
+            p.style.display = 'none';
+        });
+        var target = document.getElementById(targetPage);
+        if (target) target.style.display = 'block';
+        window.scrollTo(0, 0);
+    });
+});
+
+// 观察池 Tab 切换
+document.querySelectorAll('.pool-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+        var poolKey = this.getAttribute('data-pool');
+        var section = this.closest('.chart-section');
+        section.querySelectorAll('.pool-tab').forEach(function(t) { t.classList.remove('active'); });
+        this.classList.add('active');
+        section.querySelectorAll('.pool-panel').forEach(function(p) {
+            if (p.getAttribute('data-pool') === poolKey) {
+                p.classList.add('active');
+            } else {
+                p.classList.remove('active');
+            }
+        });
+    });
+});
+
+// 板块分布展开/收起
+function toggleSectorDetail(id, row) {
+    var detail = document.getElementById('detail-' + id);
+    var icon = document.getElementById('icon-' + id);
+    if (!detail || !icon) return;
+    if (detail.style.display === 'none') {
+        detail.style.display = '';
+        icon.classList.add('open');
+    } else {
+        detail.style.display = 'none';
+        icon.classList.remove('open');
+    }
+}
+
+// 竞价评级标签上色
+(function() {
+    var tags = document.querySelectorAll('.rating-tag');
+    tags.forEach(function(tag) {
+        var text = tag.textContent.trim();
+        var bg = '#e0e0e0', color = '#666';
+        if (text.includes('看多')) { bg = '#ffe0e0'; color = '#CC0000'; }
+        else if (text.includes('看空')) { bg = '#e0ffe0'; color = '#00AA00'; }
+        else if (text.includes('混战')) { bg = '#fff3e0'; color = '#E67E00'; }
+        else if (text.includes('试盘')) { bg = '#e0e8ff'; color = '#3366CC'; }
+        tag.style.background = bg;
+        tag.style.color = color;
+    });
+})();
+
+const dates = ["2026-08-06", "2026-08-07", "2026-08-10", "2026-08-11"];
+
+// 市场宽容幅度 - 趋势图(排除小票将趋, 单Y轴, X轴标签居中)
+new Chart(document.getElementById('chart-screen-trend'), {
+    type: 'line',
+    data: {
+        labels: ["2026-08-06", "2026-08-07", "2026-08-10", "2026-08-11"],
+        datasets: [
+            {label: "小票趋势", data: [25, 47, 69, 44], borderColor: '#9b59b6', backgroundColor: 'transparent', tension: 0.3, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#9b59b6', pointBorderColor: '#9b59b6'},{label: "大票将趋", data: [28, 134, 79, 65], borderColor: '#e74c3c', backgroundColor: 'transparent', tension: 0.3, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#e74c3c', pointBorderColor: '#e74c3c'},{label: "大票趋势", data: [3, 16, 16, 7], borderColor: '#f39c12', backgroundColor: 'transparent', tension: 0.3, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#f39c12', pointBorderColor: '#f39c12'},{label: "下头哥", data: [3, 0, 1, 0], borderColor: '#27ae60', backgroundColor: 'transparent', tension: 0.3, pointRadius: 5, pointHoverRadius: 7, pointBackgroundColor: '#27ae60', pointBorderColor: '#27ae60'}
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: {
+                offset: false,
+                grid: { display: false },
+                ticks: { autoSkip: false, maxRotation: 0 }
+            },
+            y: {
+                type: 'linear',
+                position: 'left',
+                beginAtZero: true,
+                title: { display: true, text: '数量(只)' }
+            }
+        }
+    }
+});
+
+// 成交额柱状图（与趋势图时间对齐，柱中心对齐上方数据点）
+new Chart(document.getElementById('chart-volume-bar'), {
+    type: 'bar',
+    data: {
+        labels: ["2026-08-06", "2026-08-07", "2026-08-10", "2026-08-11"],
+        datasets: [{
+            label: '成交额(亿)',
+            data: [25287.81, 26644.2, 25231.03, 23209.86],
+            backgroundColor: 'rgba(102,126,234,0.5)',
+            borderColor: '#667eea',
+            borderWidth: 1,
+            barPercentage: 0.55,
+            categoryPercentage: 0.85
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ctx.parsed.y.toFixed(2) + ' 亿' } }
+        },
+        scales: {
+            x: {
+                offset: false,
+                grid: { display: false },
+                ticks: { autoSkip: false, maxRotation: 0 }
+            },
+            y: { display: false, beginAtZero: true }
+        }
+    }
+});
+
+// 市场宽容幅度图表滚动宽度（显示7个交易日）
+(function() {
+    var inner = document.getElementById('chart-scroll-inner');
+    if (!inner) return;
+    var numDays = parseInt(inner.dataset.days) || 1;
+    var wrapper = inner.parentElement;
+    function setWidth() {
+        var w = wrapper.clientWidth;
+        var dayW = w / 7;
+        var totalW = Math.max(w, numDays * dayW);
+        inner.style.width = totalW + 'px';
+    }
+    setWidth();
+    window.addEventListener('resize', setWidth);
+})();
+
+</script>
+
+<script src="live.js"></script>
+</body></html>
